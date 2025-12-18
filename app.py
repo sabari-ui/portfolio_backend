@@ -6,6 +6,8 @@ import hashlib
 from contextlib import contextmanager
 from functools import lru_cache
 from fastapi import FastAPI, HTTPException
+
+
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import psycopg2
