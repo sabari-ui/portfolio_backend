@@ -6,8 +6,6 @@ import hashlib
 from contextlib import contextmanager
 from functools import lru_cache
 from fastapi import FastAPI, HTTPException
-
-
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import psycopg2
@@ -17,8 +15,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from groq import Groq
 import torch
 from transformers import AutoModel, AutoTokenizer
-
-
 
 load_dotenv()
 
