@@ -17,7 +17,7 @@ load_dotenv()
 # ---------------------------
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
-DOC_PATH = os.getenv("DOCUMENT_PATH", "docs/SABARI.pdf")
+DOC_PATH = os.getenv("DOCUMENT_PATH", "../portfolio_frontend/docs/SABARI.docx")
 
 EMBED_MODEL = os.getenv("EMBED_MODEL", "nomic-ai/nomic-embed-text-v1.5")
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "6"))
