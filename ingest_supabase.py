@@ -10,12 +10,10 @@ from tqdm import tqdm
 import torch
 from transformers import AutoModel, AutoTokenizer
 
-from portfolio_backend.app import load_embedding_model
-
 load_dotenv()
 # ---------------------------
 # ENV VARIABLES
-# ---------------------------
+# ---------------------------ingest
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
 DOC_PATH = os.getenv("DOCUMENT_PATH", "../portfolio_frontend/docs/SABARI.docx")
@@ -59,7 +57,6 @@ def get_embeddings_batch(text_list):
     return batch_emb
 
 def embed_batch(texts):
-    load_embedding_model()
     inputs = tokenizer(texts, return_tensors="pt", truncation=True, padding=True, max_length=8192)
     with torch.no_grad():
         outputs = model(**inputs)

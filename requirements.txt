@@ -21,7 +21,7 @@ groq==0.9.0
 
 # Embeddings (using binary wheels only - no Rust compilation)
 transformers==4.30.2
-torch==2.0.1
+torch==2.5.0
 tokenizers==0.13.3
 
 # Utilities
