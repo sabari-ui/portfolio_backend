@@ -1,0 +1,7 @@
+# Development dependencies (for local use only, not deployed to Render)
+# Install with: pip install -r requirements-dev.txt
+
+-r requirements.txt
+
+# PDF processing (only needed for ingest_supabase.py, not for running API)
+PyMuPDF==1.21.1
