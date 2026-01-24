@@ -1,9 +1,9 @@
 # Core API
-fastapi==0.103.2
-uvicorn[standard]==0.23.2
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
 
-# Pydantic v1 (Supabase compatible)
-pydantic==1.10.13
+# Pydantic v2 (Python 3.13 compatible)
+pydantic==2.5.0
 
 # Supabase
 supabase==2.10.0
