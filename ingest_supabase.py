@@ -11,7 +11,6 @@ import torch
 from transformers import AutoModel, AutoTokenizer
 
 load_dotenv()
-
 # ---------------------------
 # ENV VARIABLES
 # ---------------------------
@@ -183,7 +182,7 @@ def ingest(path):
 
         rows = []
         for ch, emb in zip(batch, embeddings):
-            ch["embedding"] = emb
+            ch["embedding"] = emb.n
             rows.append(ch)
 
         upsert_batch(rows)
