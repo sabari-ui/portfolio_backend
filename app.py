@@ -193,57 +193,7 @@ try:
     
     # Try a direct connection first to get better error messages
     # psycopg2 may handle DNS differently than Python's socket library
-    try:
-        print("Testing direct database connection (psycopg2 handles DNS resolution)...")
-        test_conn = psycopg2.connect(DATABASE_URL, connect_timeout=15)
-        with test_conn.cursor() as cur:
-            cur.execute("SELECT 1")
-        test_conn.close()
-        print("Direct connection test successful")
-    except psycopg2.OperationalError as e:
-        error_msg = str(e)
-        if "could not translate host name" in error_msg.lower() or "getaddrinfo failed" in error_msg.lower():
-            raise SystemExit(
-                f"Connection error: {error_msg}\n\n"
-                "DNS/Network issues detected. Since nslookup worked, this might be:\n"
-                "1. Python's DNS resolution differs from system DNS\n"
-                "2. Network/firewall blocking PostgreSQL connections\n"
-                "3. IPv6 connectivity issue (Supabase uses IPv6)\n"
-                "4. Corporate network restrictions\n\n"
-                "Solutions to try:\n"
-                "- Use a different network (mobile hotspot, home WiFi)\n"
-                "- Check firewall settings (allow outbound port 5432)\n"
-                "- Try using a VPN\n"
-                "- Verify DATABASE_URL hostname matches Supabase Dashboard exactly\n"
-                "- Contact network administrator if on corporate network"
-            ) from e
-        elif "password authentication failed" in error_msg.lower():
-            raise SystemExit(
-                f"Authentication error: {error_msg}\n\n"
-                "Check your DATABASE_URL password in .env file.\n"
-                "Make sure the password is correct and URL-encoded if it contains special characters."
-            ) from e
-        elif "tenant or user not found" in error_msg.lower() or "user not found" in error_msg.lower():
-            raise SystemExit(
-                f"Authentication error: {error_msg}\n\n"
-                "This usually means the username in DATABASE_URL is incorrect.\n\n"
-                "For Supabase pooler connections (aws-1-*.pooler.supabase.com):\n"
-                "  Username format: postgres.[PROJECT_REF]\n"
-                "  Example: postgres.grgosgqprembsnoftxki\n\n"
-                "For direct connections (db.*.supabase.co):\n"
-                "  Username: postgres\n\n"
-                "To fix:\n"
-                "1. Go to Supabase Dashboard > Settings > Database\n"
-                "2. Check 'Connection string' section\n"
-                "3. Use the 'Session mode' connection string for pooler\n"
-                "4. Or use 'Transaction mode' for direct connection\n"
-                "5. Copy the exact username from the connection string\n\n"
-                f"Current URL (masked): {safe_url}\n"
-                "Verify the username matches your Supabase project reference."
-            ) from e
-        else:
-            raise SystemExit(f"Database connection failed: {error_msg}") from e
-    
+
     # Create connection pool
     connection_pool = SimpleConnectionPool(
         minconn=1,
