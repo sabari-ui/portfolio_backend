@@ -22,7 +22,7 @@ groq==0.9.0
 # Embeddings (CPU safe)
 torch>=2.5.0
 transformers==4.43.3
-tokenizers==0.20.3
+tokenizers==0.19.1
 
 # Utilities
 tqdm==4.66.2
