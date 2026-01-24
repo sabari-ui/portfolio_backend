@@ -18,6 +18,9 @@ from transformers import AutoModel, AutoTokenizer
 
 load_dotenv()
 
+tokenizer = None
+embed_model = None
+
 # ---------------------------
 # ENV VARIABLES
 # ---------------------------
@@ -48,6 +51,16 @@ print(f"🚀 Groq LLM model: {GROQ_MODEL}")
 from urllib.parse import urlparse, urlunparse, quote_plus
 
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+
+def load_embedding_model():
+    global tokenizer, embed_model
+    if tokenizer is None or embed_model is None:
+        print(f"🚀 Loading Nomic embedding model: {EMBED_MODEL}")
+        tokenizer = AutoTokenizer.from_pretrained(EMBED_MODEL, trust_remote_code=True)
+        embed_model = AutoModel.from_pretrained(EMBED_MODEL, trust_remote_code=True)
+        embed_model.eval()
+        print(f"✅ Nomic model loaded. Embedding dimension = {embed_model.config.hidden_size}")
+
 
 def validate_and_fix_database_url(url):
     """Validate and fix DATABASE_URL format."""

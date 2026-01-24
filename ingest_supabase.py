@@ -10,6 +10,8 @@ from tqdm import tqdm
 import torch
 from transformers import AutoModel, AutoTokenizer
 
+from portfolio_backend.app import load_embedding_model
+
 load_dotenv()
 # ---------------------------
 # ENV VARIABLES
@@ -51,6 +53,14 @@ def get_embedding(text: str):
 def get_embeddings_batch(text_list):
     """Return batch embeddings (much faster)"""
     inputs = tokenizer(text_list, return_tensors="pt", truncation=True, padding=True, max_length=8192)
+    with torch.no_grad():
+        outputs = model(**inputs)
+        batch_emb = outputs.last_hidden_state.mean(dim=1).cpu().tolist()
+    return batch_emb
+
+def embed_batch(texts):
+    load_embedding_model()
+    inputs = tokenizer(texts, return_tensors="pt", truncation=True, padding=True, max_length=8192)
     with torch.no_grad():
         outputs = model(**inputs)
         batch_emb = outputs.last_hidden_state.mean(dim=1).cpu().tolist()
