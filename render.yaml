@@ -2,7 +2,6 @@ services:
   - type: web
     name: portfolio-api
     env: python
-    pythonVersion: "3.11"
     plan: free
 
     buildCommand: pip install --upgrade pip && pip install --prefer-binary -r requirements.txt
