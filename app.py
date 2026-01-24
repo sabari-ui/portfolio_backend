@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from urllib.parse import urlparse, urlunparse, quote_plus
 
 import requests
-import torch
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict
@@ -18,7 +18,7 @@ from groq import Groq
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from psycopg2.pool import SimpleConnectionPool
-from transformers import AutoModel, AutoTokenizer
+from sentence_transformers import SentenceTransformer
 
 # ------------------------------------------------
 # ENV LOAD
@@ -79,30 +79,19 @@ print(f"🚀 Groq model: {GROQ_MODEL}")
 # EMBEDDING (LAZY LOAD)
 # ------------------------------------------------
 
-tokenizer = None
-embed_model = None
-VECTOR_DIM = None
+embedder = None
 
 def load_embedding_model():
-    global tokenizer, embed_model, VECTOR_DIM
-
-    if tokenizer is None:
-        print("🔄 Loading embedding model...")
-        tokenizer = AutoTokenizer.from_pretrained(EMBED_MODEL)
-        embed_model = AutoModel.from_pretrained(EMBED_MODEL)
-        embed_model.eval()
-        VECTOR_DIM = embed_model.config.hidden_size
-        print(f"✅ Embedding ready ({VECTOR_DIM})")
+    global embedder
+    if embedder is None:
+        print("Loading embedding model...")
+        embedder = SentenceTransformer(EMBED_MODEL)
+        print("Embedding model ready")
 
 def get_embedding(text: str):
     load_embedding_model()
-
-    inputs = tokenizer(text, return_tensors="pt", truncation=True)
-    with torch.no_grad():
-        outputs = embed_model(**inputs)
-        emb = outputs.last_hidden_state.mean(dim=1).squeeze().tolist()
-
-    return emb
+    vec = embedder.encode(text, normalize_embeddings=True)
+    return vec.tolist()
 
 # ------------------------------------------------
 # DATABASE SETUP
@@ -131,6 +120,17 @@ connection_pool = SimpleConnectionPool(
 )
 
 print("✅ DB pool created")
+
+# Auto-enable vector extension if possible
+try:
+    with connection_pool.getconn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+            conn.commit()
+    print("✅ Verified 'vector' extension")
+except Exception as e:
+    print(f"⚠️ Could not verify 'vector' extension: {e}")
+
 
 @contextmanager
 def get_db():
@@ -301,5 +301,5 @@ def detailed_health():
         "database": db_status,
         "embedding_model": EMBED_MODEL,
         "llm_model": GROQ_MODEL,
-        "embedding_dim": VECTOR_DIM
+        "embedding_dim": embedder.get_sentence_embedding_dimension() if embedder else None
     }

@@ -7,8 +7,7 @@ from dotenv import load_dotenv
 from supabase import create_client
 import fitz  # PyMuPDF
 from tqdm import tqdm
-import torch
-from transformers import AutoModel, AutoTokenizer
+from sentence_transformers import SentenceTransformer
 
 load_dotenv()
 # ---------------------------
@@ -18,7 +17,7 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
 DOC_PATH = os.getenv("DOCUMENT_PATH", "../portfolio_frontend/docs/SABARI.docx")
 
-EMBED_MODEL = os.getenv("EMBED_MODEL", "nomic-ai/nomic-embed-text-v1.5")
+EMBED_MODEL = os.getenv("EMBED_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "6"))
 
 if not SUPABASE_URL or not SUPABASE_KEY:
@@ -30,38 +29,25 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ---------------------------
-# LOAD NOMIC EMBEDDING MODEL
+# LOAD EMBEDDING MODEL
 # ---------------------------
-print(f"🚀 Loading Nomic embedding model: {EMBED_MODEL}")
-tokenizer = AutoTokenizer.from_pretrained(EMBED_MODEL, trust_remote_code=True)
-model = AutoModel.from_pretrained(EMBED_MODEL, trust_remote_code=True)
-model.eval()
-
-VECTOR_DIM = model.config.hidden_size
-print(f"✅ Nomic model loaded. Embedding dimension = {VECTOR_DIM}")
+print(f"🚀 Loading embedding model: {EMBED_MODEL}")
+embedder = SentenceTransformer(EMBED_MODEL)
+VECTOR_DIM = embedder.get_sentence_embedding_dimension()
+print(f"✅ Model loaded. Embedding dimension = {VECTOR_DIM}")
 
 def get_embedding(text: str):
-    """Return a single embedding vector (768D)"""
-    inputs = tokenizer(text, return_tensors="pt", truncation=True, max_length=8192)
-    with torch.no_grad():
-        outputs = model(**inputs)
-        emb = outputs.last_hidden_state.mean(dim=1).squeeze().tolist()
-    return emb
+    """Return a single embedding vector"""
+    return embedder.encode(text, normalize_embeddings=True).tolist()
+
 
 def get_embeddings_batch(text_list):
     """Return batch embeddings (much faster)"""
-    inputs = tokenizer(text_list, return_tensors="pt", truncation=True, padding=True, max_length=8192)
-    with torch.no_grad():
-        outputs = model(**inputs)
-        batch_emb = outputs.last_hidden_state.mean(dim=1).cpu().tolist()
-    return batch_emb
+    return embedder.encode(text_list, normalize_embeddings=True).tolist()
 
 def embed_batch(texts):
-    inputs = tokenizer(texts, return_tensors="pt", truncation=True, padding=True, max_length=8192)
-    with torch.no_grad():
-        outputs = model(**inputs)
-        batch_emb = outputs.last_hidden_state.mean(dim=1).cpu().tolist()
-    return batch_emb
+    return embedder.encode(texts, normalize_embeddings=True).tolist()
+
 
 # ---------------------------
 # SEMANTIC CHUNKING
