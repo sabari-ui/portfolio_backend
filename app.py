@@ -37,14 +37,8 @@ if not GROQ_API_KEY:
 # ---------------------------
 groq_client = Groq(api_key=GROQ_API_KEY)
 
-# Load Nomic embedding model
-print(f"🚀 Loading Nomic embedding model: {EMBED_MODEL}")
-tokenizer = AutoTokenizer.from_pretrained(EMBED_MODEL, trust_remote_code=True)
-embed_model = AutoModel.from_pretrained(EMBED_MODEL, trust_remote_code=True)
-embed_model.eval()
-
-VECTOR_DIM = embed_model.config.hidden_size
-print(f"✅ Nomic model loaded. Embedding dimension = {VECTOR_DIM}")
+# Embedding model is lazy-loaded on first use (not at startup)
+VECTOR_DIM = None
 print(f"🚀 Groq LLM model: {GROQ_MODEL}")
 
 # Get database connection - can use DATABASE_URL directly or construct from components
@@ -53,13 +47,20 @@ from urllib.parse import urlparse, urlunparse, quote_plus
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 
 def load_embedding_model():
-    global tokenizer, embed_model
+    global tokenizer, embed_model, VECTOR_DIM
     if tokenizer is None or embed_model is None:
-        print(f"🚀 Loading Nomic embedding model: {EMBED_MODEL}")
-        tokenizer = AutoTokenizer.from_pretrained(EMBED_MODEL, trust_remote_code=True)
-        embed_model = AutoModel.from_pretrained(EMBED_MODEL, trust_remote_code=True)
+        print("🔄 Loading embedding model lazily...")
+        tokenizer = AutoTokenizer.from_pretrained(
+            EMBED_MODEL,
+            trust_remote_code=True
+        )
+        embed_model = AutoModel.from_pretrained(
+            EMBED_MODEL,
+            trust_remote_code=True
+        )
         embed_model.eval()
-        print(f"✅ Nomic model loaded. Embedding dimension = {embed_model.config.hidden_size}")
+        VECTOR_DIM = embed_model.config.hidden_size
+        print(f"✅ Embedding model loaded (dimension = {VECTOR_DIM})")
 
 
 def validate_and_fix_database_url(url):
@@ -303,6 +304,7 @@ class QueryRequest(BaseModel):
 
 def get_embedding(text: str):
     """Generate embeddings using Nomic model (transformers)."""
+    load_embedding_model()
     try:
         inputs = tokenizer(text, return_tensors="pt", truncation=True, max_length=8192)
         with torch.no_grad():
@@ -424,13 +426,7 @@ def clear_cache():
 
 @app.get("/health")
 def health():
-    """Health check endpoint - fast and simple."""
-    # Just return OK - don't check connections (they're checked on startup)
-    # This makes health checks instant for load balancers/monitoring
-    return {
-        "status": "ok",
-        "message": "Server is running"
-    }
+    return {"status": "ok"}
 
 @app.get("/health/detailed")
 def health_detailed():
