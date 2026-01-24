@@ -21,11 +21,6 @@ load_dotenv()
 tokenizer = None
 embed_model = None
 
-@app.get("/")
-def root():
-    return {"status": "API running"}
-
-
 # ---------------------------
 # ENV VARIABLES
 # ---------------------------
@@ -292,6 +287,14 @@ def get_db_connection():
         if conn:
             connection_pool.putconn(conn)
 app = FastAPI(title="RAG API (Supabase + Groq)")
+
+@app.get("/")
+def root():
+    return {"status": "API running"}
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
 
 app.add_middleware(
     CORSMiddleware,
