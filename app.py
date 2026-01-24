@@ -21,6 +21,11 @@ load_dotenv()
 tokenizer = None
 embed_model = None
 
+@app.get("/")
+def root():
+    return {"status": "API running"}
+
+
 # ---------------------------
 # ENV VARIABLES
 # ---------------------------
