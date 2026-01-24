@@ -2,8 +2,8 @@
 fastapi==0.103.2
 uvicorn[standard]==0.23.2
 
-# Pydantic v1 (Supabase compatible)
-pydantic==1.10.13
+# Pydantic v2 (fixes ForwardRef compatibility)
+pydantic==2.5.3
 
 # Supabase
 supabase==2.10.0

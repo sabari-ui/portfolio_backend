@@ -6,7 +6,7 @@ import hashlib
 from contextlib import contextmanager
 from functools import lru_cache
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from dotenv import load_dotenv
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -298,6 +298,7 @@ app.add_middleware(
 )
 
 class QueryRequest(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     query: str
     k: int = 4
     session_id: str | None = None
