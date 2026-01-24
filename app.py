@@ -1,3 +1,5 @@
+# app.py
+
 import os
 import atexit
 import hashlib
@@ -18,21 +20,21 @@ from psycopg2.extras import RealDictCursor
 from psycopg2.pool import SimpleConnectionPool
 from transformers import AutoModel, AutoTokenizer
 
-# ---------------------------------------------------
-# LOAD ENV
-# ---------------------------------------------------
+# ------------------------------------------------
+# ENV LOAD
+# ------------------------------------------------
 
 load_dotenv()
 
-# ---------------------------------------------------
-# FASTAPI INIT (FIRST — IMPORTANT)
-# ---------------------------------------------------
+# ------------------------------------------------
+# FASTAPI INIT (MUST BE FIRST)
+# ------------------------------------------------
 
 app = FastAPI(title="Sabari Portfolio RAG API")
 
-# ---------------------------------------------------
+# ------------------------------------------------
 # MIDDLEWARE
-# ---------------------------------------------------
+# ------------------------------------------------
 
 app.add_middleware(
     CORSMiddleware,
@@ -42,9 +44,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ---------------------------------------------------
-# BASIC ROUTES (IMMEDIATE)
-# ---------------------------------------------------
+# ------------------------------------------------
+# BASIC ROUTES
+# ------------------------------------------------
 
 @app.get("/")
 def root():
@@ -54,9 +56,9 @@ def root():
 def health():
     return {"status": "ok"}
 
-# ---------------------------------------------------
+# ------------------------------------------------
 # ENV CONFIG
-# ---------------------------------------------------
+# ------------------------------------------------
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
@@ -66,16 +68,16 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if not GROQ_API_KEY:
     raise RuntimeError("GROQ_API_KEY missing")
 
-# ---------------------------------------------------
+# ------------------------------------------------
 # GROQ CLIENT
-# ---------------------------------------------------
+# ------------------------------------------------
 
 groq_client = Groq(api_key=GROQ_API_KEY)
 print(f"🚀 Groq model: {GROQ_MODEL}")
 
-# ---------------------------------------------------
+# ------------------------------------------------
 # EMBEDDING (LAZY LOAD)
-# ---------------------------------------------------
+# ------------------------------------------------
 
 tokenizer = None
 embed_model = None
@@ -90,7 +92,7 @@ def load_embedding_model():
         embed_model = AutoModel.from_pretrained(EMBED_MODEL)
         embed_model.eval()
         VECTOR_DIM = embed_model.config.hidden_size
-        print("✅ Embedding ready")
+        print(f"✅ Embedding ready ({VECTOR_DIM})")
 
 def get_embedding(text: str):
     load_embedding_model()
@@ -102,9 +104,9 @@ def get_embedding(text: str):
 
     return emb
 
-# ---------------------------------------------------
+# ------------------------------------------------
 # DATABASE SETUP
-# ---------------------------------------------------
+# ------------------------------------------------
 
 def fix_db_url(url):
     parsed = urlparse(url)
@@ -140,28 +142,48 @@ def get_db():
 
 atexit.register(lambda: connection_pool.closeall())
 
-# ---------------------------------------------------
-# CACHE
-# ---------------------------------------------------
+# ------------------------------------------------
+# CACHE SYSTEM (FULL)
+# ------------------------------------------------
 
-_cache = {}
-CACHE_LIMIT = 100
+_answer_cache = {}
+_CACHE_LIMIT = 100
 
-def cache_key(q, k):
-    return hashlib.md5(f"{q}:{k}".encode()).hexdigest()
+def _cache_key(query, k):
+    return hashlib.md5(f"{query}:{k}".encode()).hexdigest()
 
-# ---------------------------------------------------
+def _get_cached(key):
+    return _answer_cache.get(key)
+
+def _store_cache(key, payload):
+    if len(_answer_cache) >= _CACHE_LIMIT:
+        _answer_cache.pop(next(iter(_answer_cache)))
+    _answer_cache[key] = payload
+
+@app.get("/cache/stats")
+def cache_stats():
+    return {
+        "size": len(_answer_cache),
+        "max_size": _CACHE_LIMIT
+    }
+
+@app.get("/cache/clear")
+def clear_cache():
+    _answer_cache.clear()
+    return {"status": "cache cleared"}
+
+# ------------------------------------------------
 # REQUEST MODEL
-# ---------------------------------------------------
+# ------------------------------------------------
 
 class QueryRequest(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     query: str
     k: int = 4
 
-# ---------------------------------------------------
+# ------------------------------------------------
 # VECTOR SEARCH
-# ---------------------------------------------------
+# ------------------------------------------------
 
 def vector_to_literal(vec):
     return "[" + ",".join(str(float(x)) for x in vec) + "]"
@@ -182,9 +204,9 @@ def pg_search(vec, k):
             cur.execute(sql, (vec_lit, vec_lit, k))
             return cur.fetchall()
 
-# ---------------------------------------------------
+# ------------------------------------------------
 # GROQ GENERATION
-# ---------------------------------------------------
+# ------------------------------------------------
 
 def generate_llm(prompt):
     completion = groq_client.chat.completions.create(
@@ -194,14 +216,14 @@ def generate_llm(prompt):
             {"role": "user", "content": prompt}
         ],
         temperature=0.1,
-        max_tokens=400
+        max_tokens=500
     )
 
     return completion.choices[0].message.content.strip()
 
-# ---------------------------------------------------
-# MAIN RAG ENDPOINT
-# ---------------------------------------------------
+# ------------------------------------------------
+# RAG ENDPOINT
+# ------------------------------------------------
 
 @app.post("/api/rag/query")
 def rag_query(req: QueryRequest):
@@ -210,21 +232,21 @@ def rag_query(req: QueryRequest):
     if not q:
         raise HTTPException(400, "Query required")
 
-    key = cache_key(q, req.k)
+    cache_key = _cache_key(q, req.k)
+    cached = _get_cached(cache_key)
 
-    if key in _cache:
-        return _cache[key]
+    if cached:
+        return cached
 
-    # embedding
+    t0 = time.time()
+
     emb = get_embedding(q)
-
-    # search
     results = pg_search(emb, req.k)
 
     if not results:
         return {"answer": "No relevant data found", "sources": []}
 
-    context = "\n\n".join([r["chunk_text"][:1000] for r in results])
+    context = "\n\n".join([r["chunk_text"][:1200] for r in results])
 
     prompt = f"""
 CONTEXT:
@@ -238,25 +260,46 @@ QUESTION:
 
     payload = {
         "answer": answer,
-        "sources": results
+        "sources": results,
+        "timings": {
+            "total_seconds": round(time.time() - t0, 2),
+            "cached": False
+        }
     }
 
-    if len(_cache) > CACHE_LIMIT:
-        _cache.pop(next(iter(_cache)))
-
-    _cache[key] = payload
+    _store_cache(cache_key, payload)
 
     return payload
 
-# ---------------------------------------------------
+# ------------------------------------------------
 # DEBUG ROUTES
-# ---------------------------------------------------
+# ------------------------------------------------
 
 @app.get("/test-groq")
 def test_groq():
-    return {"reply": generate_llm("Say hello")}
+    return {"reply": generate_llm("Say hello in one sentence")}
 
 @app.get("/test-embedding")
 def test_embedding():
     vec = get_embedding("hello world")
     return {"vector_size": len(vec)}
+
+@app.get("/health/detailed")
+def detailed_health():
+
+    db_status = "ok"
+
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1")
+    except Exception as e:
+        db_status = f"error: {str(e)}"
+
+    return {
+        "status": "ok" if db_status == "ok" else "degraded",
+        "database": db_status,
+        "embedding_model": EMBED_MODEL,
+        "llm_model": GROQ_MODEL,
+        "embedding_dim": VECTOR_DIM
+    }
