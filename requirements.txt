@@ -26,4 +26,4 @@ transformers==4.39.3
 
 # Utilities
 tqdm==4.66.2
-PyMuPDF==1.23.26
+PyMuPDF==1.21.1
