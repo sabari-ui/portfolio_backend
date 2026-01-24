@@ -19,8 +19,8 @@ httpx==0.27.0
 # LLM
 groq==0.9.0
 
-# Embeddings
-transformers==4.39.3
+# Embeddings (pinned to version with stable wheels)
+transformers==4.36.2
 
 # Utilities
 tqdm==4.66.2
