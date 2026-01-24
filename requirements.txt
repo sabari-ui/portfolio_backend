@@ -7,7 +7,6 @@ pydantic==1.10.13
 
 # Supabase
 supabase==2.10.0
-postgrest==0.13.2
 
 # Database
 psycopg2-binary==2.9.9
