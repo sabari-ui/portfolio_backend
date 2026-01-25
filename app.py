@@ -281,8 +281,12 @@ def test_groq():
 
 @app.get("/test-embedding")
 def test_embedding():
-    vec = get_embedding("hello world")
-    return {"vector_size": len(vec)}
+    try:
+        vec = get_embedding("hello world")
+        return {"vector_size": len(vec)}
+    except Exception as e:
+        import traceback
+        return {"error": str(e), "traceback": traceback.format_exc()}
 
 @app.get("/health/detailed")
 def detailed_health():
