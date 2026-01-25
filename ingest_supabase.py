@@ -28,6 +28,14 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 # ---------------------------
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+
+embedding = get_embedding(chunk_text)
+
+if embedding is None or len(embedding) != 384:
+    print("Skipping invalid embedding")
+    continue
+
+
 # ---------------------------
 # LOAD EMBEDDING MODEL
 # ---------------------------
@@ -175,7 +183,7 @@ def ingest(path):
 
         rows = []
         for ch, emb in zip(batch, embeddings):
-            ch["embedding"] = emb.n
+            ch["embedding"] = emb
             rows.append(ch)
 
         upsert_batch(rows)
