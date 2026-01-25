@@ -1,24 +1,22 @@
 # app.py
 
 import os
-import atexit
 import hashlib
 import time
-import logging
 from contextlib import contextmanager
 from urllib.parse import urlparse, urlunparse, quote_plus
-
-import requests
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict
 from dotenv import load_dotenv
-from groq import Groq
+
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from psycopg2.pool import SimpleConnectionPool
+
+from groq import Groq
 from sentence_transformers import SentenceTransformer
+
 
 # ------------------------------------------------
 # ENV LOAD
@@ -27,7 +25,7 @@ from sentence_transformers import SentenceTransformer
 load_dotenv()
 
 # ------------------------------------------------
-# FASTAPI INIT (MUST BE FIRST)
+# FASTAPI INIT
 # ------------------------------------------------
 
 app = FastAPI(title="Sabari Portfolio RAG API")
@@ -68,6 +66,9 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if not GROQ_API_KEY:
     raise RuntimeError("GROQ_API_KEY missing")
 
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL missing")
+
 # ------------------------------------------------
 # GROQ CLIENT
 # ------------------------------------------------
@@ -84,9 +85,9 @@ embedder = None
 def load_embedding_model():
     global embedder
     if embedder is None:
-        print("Loading embedding model...")
-        embedder = SentenceTransformer(EMBED_MODEL, device='cpu', trust_remote_code=True)
-        print("Embedding model ready")
+        print("🔄 Loading embedding model...")
+        embedder = SentenceTransformer(EMBED_MODEL, device="cpu")
+        print("✅ Embedding model ready")
 
 def get_embedding(text: str):
     load_embedding_model()
@@ -109,41 +110,26 @@ if "sslmode" not in DATABASE_URL:
     DATABASE_URL += "?sslmode=require"
 
 if "connect_timeout" not in DATABASE_URL:
-    DATABASE_URL += "&connect_timeout=5"
+    DATABASE_URL += "&connect_timeout=10"
 
-print("Connecting DB...")
-
-connection_pool = SimpleConnectionPool(
-    minconn=1,
-    maxconn=10,
-    dsn=DATABASE_URL
-)
-
-print("✅ DB pool created")
-
-# Auto-enable vector extension if possible
-try:
-    with connection_pool.getconn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
-            conn.commit()
-    print("✅ Verified 'vector' extension")
-except Exception as e:
-    print(f"⚠️ Could not verify 'vector' extension: {e}")
-
-
-@contextmanager
-def get_db():
-    conn = connection_pool.getconn()
-    try:
-        yield conn
-    finally:
-        connection_pool.putconn(conn)
-
-atexit.register(lambda: connection_pool.closeall())
+print("✅ Database URL prepared")
 
 # ------------------------------------------------
-# CACHE SYSTEM (FULL)
+# SAFE CONNECTION HANDLER (NO POOLER CONFLICT)
+# ------------------------------------------------
+
+@contextmanager
+def get_db_connection():
+    conn = None
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        yield conn
+    finally:
+        if conn:
+            conn.close()
+
+# ------------------------------------------------
+# CACHE SYSTEM
 # ------------------------------------------------
 
 _answer_cache = {}
@@ -189,8 +175,11 @@ def vector_to_literal(vec):
     return "[" + ",".join(str(float(x)) for x in vec) + "]"
 
 def pg_search(vec, k):
+
     sql = """
-    SELECT chunk_id, chunk_text, document_title,
+    SELECT chunk_id,
+           chunk_text,
+           document_title,
            1 - (embedding <#> %s::vector) AS score
     FROM public.chunks
     ORDER BY embedding <#> %s::vector
@@ -199,7 +188,7 @@ def pg_search(vec, k):
 
     vec_lit = vector_to_literal(vec)
 
-    with get_db() as conn:
+    with get_db_connection() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(sql, (vec_lit, vec_lit, k))
             return cur.fetchall()
@@ -209,6 +198,7 @@ def pg_search(vec, k):
 # ------------------------------------------------
 
 def generate_llm(prompt):
+
     completion = groq_client.chat.completions.create(
         model=GROQ_MODEL,
         messages=[
@@ -238,7 +228,7 @@ def rag_query(req: QueryRequest):
     if cached:
         return cached
 
-    t0 = time.time()
+    start = time.time()
 
     emb = get_embedding(q)
     results = pg_search(emb, req.k)
@@ -262,7 +252,7 @@ QUESTION:
         "answer": answer,
         "sources": results,
         "timings": {
-            "total_seconds": round(time.time() - t0, 2),
+            "total_seconds": round(time.time() - start, 2),
             "cached": False
         }
     }
@@ -281,12 +271,8 @@ def test_groq():
 
 @app.get("/test-embedding")
 def test_embedding():
-    try:
-        vec = get_embedding("hello world")
-        return {"vector_size": len(vec)}
-    except Exception as e:
-        import traceback
-        return {"error": str(e), "traceback": traceback.format_exc()}
+    vec = get_embedding("hello world")
+    return {"vector_size": len(vec)}
 
 @app.get("/health/detailed")
 def detailed_health():
@@ -294,7 +280,7 @@ def detailed_health():
     db_status = "ok"
 
     try:
-        with get_db() as conn:
+        with get_db_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT 1")
     except Exception as e:
