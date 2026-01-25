@@ -85,7 +85,7 @@ def load_embedding_model():
     global embedder
     if embedder is None:
         print("Loading embedding model...")
-        embedder = SentenceTransformer(EMBED_MODEL)
+        embedder = SentenceTransformer(EMBED_MODEL, device='cpu')
         print("Embedding model ready")
 
 def get_embedding(text: str):
