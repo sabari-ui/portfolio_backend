@@ -32,7 +32,7 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 # LOAD EMBEDDING MODEL
 # ---------------------------
 print(f"🚀 Loading embedding model: {EMBED_MODEL}")
-embedder = SentenceTransformer(EMBED_MODEL)
+embedder = SentenceTransformer(EMBED_MODEL, device='cpu', trust_remote_code=True)
 VECTOR_DIM = embedder.get_sentence_embedding_dimension()
 print(f"✅ Model loaded. Embedding dimension = {VECTOR_DIM}")
 
