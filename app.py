@@ -47,10 +47,12 @@ app.add_middleware(
 # ------------------------------------------------
 
 @app.get("/")
+@app.head("/")
 def root():
     return {"status": "API running"}
 
 @app.get("/health")
+@app.head("/health")
 def health():
     return {"status": "ok"}
 
